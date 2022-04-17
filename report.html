@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 15-Apr-2022 at 00:01:15 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>JAVA_HOME</td>
+        <td>C:\Program Files\Java\jdk1.8.0_144</td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "1.0.0", "py": "1.11.0", "pytest": "7.0.1"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.19041</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"assume": "2.4.3", "forked": "1.4.0", "html": "3.1.1", "metadata": "1.11.0", "rerunfailures": "10.2", "xdist": "2.5.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.6.4</td></tr></table>
+    <h2>Summary</h2>
+    <p>48 tests ran in 1.04 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">35 passed</span>, <input checked="true" class="filter" data-test-result="skipped" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">1 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">12 failed</span>, <input checked="true" class="filter" data-test-result="error" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">1 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">1 unexpected passes</span>, <input checked="true" class="filter" data-test-result="rerun" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="rerun">0 rerun</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">pytest_fixture/test_mark_skip.py::test_create_order002::setup</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>invalid syntax (&lt;skipif condition&gt;, line 1)<br/><br/>During handling of the above exception, another exception occurred:<br/>Error evaluating &#x27;skipif&#x27; condition<br/>    if amount&gt;0<br/>      ^<br/>SyntaxError: invalid syntax[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_pytest.py::TestDemo01::test_one</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/><br/>self = &lt;test_pytest.TestDemo01 object at 0x000001AF174896A0&gt;<br/><br/>    def test_one(self):<br/>        x = &quot;this&quot;<br/>&gt;       assert  x == &#x27;that&#x27;<br/><span class="error">E       AssertionError: assert &#x27;this&#x27; == &#x27;that&#x27;</span><br/><span class="error">E         - that</span><br/><span class="error">E         + this</span><br/><br/>test_pytest.py:15: AssertionError[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_pytest.py::TestDemo01::test_two</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/><br/>self = &lt;test_pytest.TestDemo01 object at 0x0000022AAB737710&gt;<br/><br/>    def test_two(self):<br/>        x = &quot;hello&quot;<br/>&gt;       assert hasattr(x, &quot;check&quot;)<br/><span class="error">E       AssertionError: assert False</span><br/><span class="error">E        +  where False = hasattr(&#x27;hello&#x27;, &#x27;check&#x27;)</span><br/><br/>test_pytest.py:19: AssertionError[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_pytest.py::TestDemo01::test_three</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/><br/>self = &lt;test_pytest.TestDemo01 object at 0x0000025572C38860&gt;<br/><br/>    def test_three(self):<br/>        a = &quot;hello &quot;<br/>        b = &#x27;hello world&#x27;<br/>&gt;       assert a not in b<br/><span class="error">E       AssertionError: assert &#x27;hello &#x27; not in &#x27;hello world&#x27;</span><br/><span class="error">E         &#x27;hello &#x27; is contained here:</span><br/><span class="error">E           hello world</span><br/><br/>test_pytest.py:24: AssertionError[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_pytest.py::TestDemo02::test_b</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/><br/>self = &lt;test_pytest.TestDemo02 object at 0x0000022AAB737A90&gt;<br/><br/>    def test_b(self):<br/>        x = &quot;hello&quot;<br/>&gt;       assert hasattr(x, &quot;check&quot;)<br/><span class="error">E       AssertionError: assert False</span><br/><span class="error">E        +  where False = hasattr(&#x27;hello&#x27;, &#x27;check&#x27;)</span><br/><br/>test_pytest.py:34: AssertionError[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_pytest.py::TestDemo02::test_c</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/><br/>self = &lt;test_pytest.TestDemo02 object at 0x0000025572C38BE0&gt;<br/><br/>    def test_c(self):<br/>        a = &quot;hello &quot;<br/>        b = &#x27;hello world&#x27;<br/>&gt;       assert a not in b<br/><span class="error">E       AssertionError: assert &#x27;hello &#x27; not in &#x27;hello world&#x27;</span><br/><span class="error">E         &#x27;hello &#x27; is contained here:</span><br/><span class="error">E           hello world</span><br/><br/>test_pytest.py:39: AssertionError[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_pytest_assume.py::TestDemo01::test_one</td>
+          <td class="col-duration">0.03</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/><br/>tp = &lt;class &#x27;pytest_assume.plugin.FailedAssumption&#x27;&gt;, value = None, tb = None<br/><br/>    def reraise(tp, value, tb=None):<br/>        try:<br/>            if value is None:<br/>                value = tp()<br/>            if value.__traceback__ is not tb:<br/>&gt;               raise value.with_traceback(tb)<br/><span class="error">E               pytest_assume.plugin.FailedAssumption: </span><br/><span class="error">E               2 Failed Assumptions:</span><br/><span class="error">E               </span><br/><span class="error">E               test_pytest_assume.py:15: AssumptionFailure</span><br/><span class="error">E               &gt;&gt;	pytest.assume(&quot;a&quot; in x)</span><br/><span class="error">E               AssertionError: assert False</span><br/><span class="error">E               </span><br/><span class="error">E               test_pytest_assume.py:16: AssumptionFailure</span><br/><span class="error">E               &gt;&gt;	pytest.assume(&quot;b&quot; == x)</span><br/><span class="error">E               AssertionError: assert False</span><br/><br/>C:\Users\jieliu666\.virtualenv\pytestDemoEnv\lib\site-packages\six.py:718: FailedAssumption[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_pytest_assume.py::TestDemo01::test_three</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/><br/>self = &lt;test_pytest_assume.TestDemo01 object at 0x000001AF175204E0&gt;<br/><br/>    def test_three(self):<br/>        a = &quot;hello &quot;<br/>        b = &#x27;hello world&#x27;<br/>&gt;       assert a not in b<br/><span class="error">E       AssertionError: assert &#x27;hello &#x27; not in &#x27;hello world&#x27;</span><br/><span class="error">E         &#x27;hello &#x27; is contained here:</span><br/><span class="error">E           hello world</span><br/><br/>test_pytest_assume.py:26: AssertionError[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_pytest_assume.py::TestDemo01::test_two</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/><br/>self = &lt;test_pytest_assume.TestDemo01 object at 0x0000025572C51320&gt;<br/><br/>    def test_two(self):<br/>        x = &quot;hello&quot;<br/>&gt;       assert hasattr(x, &quot;check&quot;)<br/><span class="error">E       AssertionError: assert False</span><br/><span class="error">E        +  where False = hasattr(&#x27;hello&#x27;, &#x27;check&#x27;)</span><br/><br/>test_pytest_assume.py:21: AssertionError[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_pytest_assume.py::TestDemo02::test_b</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/><br/>self = &lt;test_pytest_assume.TestDemo02 object at 0x0000025572C516A0&gt;<br/><br/>    def test_b(self):<br/>        x = &quot;hello&quot;<br/>&gt;       assert hasattr(x, &quot;check&quot;)<br/><span class="error">E       AssertionError: assert False</span><br/><span class="error">E        +  where False = hasattr(&#x27;hello&#x27;, &#x27;check&#x27;)</span><br/><br/>test_pytest_assume.py:36: AssertionError[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_pytest_assume.py::TestDemo02::test_c</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/><br/>self = &lt;test_pytest_assume.TestDemo02 object at 0x0000025572C517B8&gt;<br/><br/>    def test_c(self):<br/>        a = &quot;hello &quot;<br/>        b = &#x27;hello world&#x27;<br/>&gt;       assert a not in b<br/><span class="error">E       AssertionError: assert &#x27;hello &#x27; not in &#x27;hello world&#x27;</span><br/><span class="error">E         &#x27;hello &#x27; is contained here:</span><br/><span class="error">E           hello world</span><br/><br/>test_pytest_assume.py:41: AssertionError[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">pytest_fixture/test_fixture_autouse.py::test_search01</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/><br/>open = None<br/><br/>    def test_search01(open):<br/>        print(&quot;test_search01&quot;)<br/>&gt;       raise NameError<br/><span class="error">E       NameError</span><br/><br/>pytest_fixture\test_fixture_autouse.py:15: NameError[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+打开浏览器
+<br/> ------------------------------Captured stdout call------------------------------ <br/>test_search01
+<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">pytest_fixture/test_fixture_yield.py::test_search01</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/><br/>open = None<br/><br/>    def test_search01(open):<br/>        print(&quot;test_search01&quot;)<br/>&gt;       raise NameError<br/><span class="error">E       NameError</span><br/><br/>pytest_fixture\test_fixture_yield.py:19: NameError[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+打开浏览器
+<br/> ------------------------------Captured stdout call------------------------------ <br/>test_search01
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>执行teardown !
+关闭浏览器
+<br/></div></td></tr></tbody>
+      <tbody class="xpassed results-table-row">
+        <tr>
+          <td class="col-result">XPassed</td>
+          <td class="col-name">pytest_fixture/test_mark_xfail.py::test_create_order001</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/></div></td></tr></tbody>
+      <tbody class="skipped results-table-row">
+        <tr>
+          <td class="col-result">Skipped</td>
+          <td class="col-name">pytest_fixture/test_mark_skip.py::test_create_order001</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>(&#x27;C:\\Users\\jieliu666\\python3_code\\sublime_text03\\14SoftwareTest\\lemon_python11\\webTest\\python_webTest\\pytest_demo_v1\\pytest_fixture\\test_mark_skip.py&#x27;, 7, &#x27;Skipped: unconditional skip&#x27;)[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_pytest.py::test_a</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/> ------------------------------Captured stdout call------------------------------ <br/>test_a方法
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_pytest.py::TestDemo02::test_a</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_pytest_assume.py::test_a</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/> ------------------------------Captured stdout call------------------------------ <br/>test_a方法
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_pytest_mark.py::test_register003</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/> ------------------------------Captured stdout call------------------------------ <br/>注册用例case003
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_pytest_mark.py::test_recharge001</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> ------------------------------Captured stdout call------------------------------ <br/>充值用例case001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_pytest_mark.py::test_recharge002</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> ------------------------------Captured stdout call------------------------------ <br/>充值用例case002
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_setup_teardown.py::TestSetUpTeardownClass::test_login</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+setup_module
+前置类方法
+setup_method
+<br/> ------------------------------Captured stdout call------------------------------ <br/>测试方法
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>teardown_method
+后置类方法
+teardown_module
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_pytest_mark.py::test_register001</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/> ------------------------------Captured stdout call------------------------------ <br/>注册用例case001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_pytest_mark.py::test_register002</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> ------------------------------Captured stdout call------------------------------ <br/>注册用例case002
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_fixture_autouse.py::test_search02</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>打开浏览器
+<br/> ------------------------------Captured stdout call------------------------------ <br/>test_search02
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_fixture_autouse.py::test_search03</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>打开浏览器
+<br/> ------------------------------Captured stdout call------------------------------ <br/>test_search03
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_fixture_demo.py::TestFixTureDemo01::test_case02</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/> ------------------------------Captured stdout call------------------------------ <br/>不需要登录
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_fixture_demo.py::TestFixTureDemo01::test_case03</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>登录操作！
+<br/> ------------------------------Captured stdout call------------------------------ <br/>后登录
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_fixture_demo.py::TestFixTureDemo01::test_case01</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+登录操作！
+<br/> ------------------------------Captured stdout call------------------------------ <br/>需要先登录
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_fixture_yield.py::test_search02</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+打开浏览器
+<br/> ------------------------------Captured stdout call------------------------------ <br/>test_search02
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_fixture_yield.py::test_search03</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> ------------------------------Captured stdout call------------------------------ <br/>test_search03
+<br/> ----------------------------Captured stdout teardown---------------------------- <br/>执行teardown !
+关闭浏览器
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_case1[value1]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_case1[valuen]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_case1[value2]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_case02[val0]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> ------------------------------Captured stdout call------------------------------ <br/>{&#x27;username1&#x27;: &#x27;value1&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test_pytest_assume.py::TestDemo02::test_a</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_foo[2-0]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> ------------------------------Captured stdout call------------------------------ <br/>2/0
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_case02[val1]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> ------------------------------Captured stdout call------------------------------ <br/>{&#x27;username2&#x27;: &#x27;value2&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_foo[3-0]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> ------------------------------Captured stdout call------------------------------ <br/>3/0
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_foo[3-1]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> ------------------------------Captured stdout call------------------------------ <br/>3/1
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_foo[2-1]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/> ------------------------------Captured stdout call------------------------------ <br/>2/1
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_func01[params20-user01]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> ------------------------------Captured stdout call------------------------------ <br/>{&#x27;user01&#x27;: [&#x27;value_p2&#x27;, &#x27;value_p3&#x27;]}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_func01[params21-user01]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> ------------------------------Captured stdout call------------------------------ <br/>{&#x27;user01&#x27;: [&#x27;value_pp2,value_pp3&#x27;]}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_login[login0]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>用户名：admin01
+密码：123456
+<br/> ------------------------------Captured stdout call------------------------------ <br/>{&#x27;user&#x27;: &#x27;admin01&#x27;, &#x27;password&#x27;: &#x27;123456&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_paramize.py::test_login[login1]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>用户名：admin02
+密码：abc123
+<br/> ------------------------------Captured stdout call------------------------------ <br/>{&#x27;user&#x27;: &#x27;admin02&#x27;, &#x27;password&#x27;: &#x27;abc123&#x27;}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_skip.py::test_register002</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/> ------------------------------Captured stdout call------------------------------ <br/>case002
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_skip.py::test_login001</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/> ------------------------------Captured stdout call------------------------------ <br/>case001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_xfail.py::test_create_order002</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw1] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_xfail.py::test_login001</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw0] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> -----------------------------Captured stdout setup------------------------------ <br/>浏览器窗口最大化
+<br/> ------------------------------Captured stdout call------------------------------ <br/>case001
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">pytest_fixture/test_mark_xfail.py::test_register002</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/>[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe[gw2] win32 -- Python 3.6.4 C:\Users\jieliu666\.virtualenv\pytestDemoEnv\Scripts\python.exe<br/> ------------------------------Captured stdout call------------------------------ <br/>case002
+<br/></div></td></tr></tbody></table></body></html>
