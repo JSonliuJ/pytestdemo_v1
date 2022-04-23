@@ -3,7 +3,7 @@
 # @Author: 		JsonLiu
 # @Email:  		492224300@qq.com
 import pytest
-
+import time
 
 @pytest.fixture(scope='class')
 def mysql_connect():
@@ -21,6 +21,8 @@ class TestReturnDemo001():
 
     def test_baidu001(self,driver_init): # driver_init = (driver,True)
         driver_init[0].find_element_by_id("kw").send_keys("pytest")
+        driver_init[0].find_element_by_xpath('//input[@id="su"]').click()
+        time.sleep(10)
 
 
 # 方式1：@pytest.mark.usefixtures('定义的fixture函数')
