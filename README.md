@@ -439,15 +439,15 @@ if __name__ == '__main__':
 #### 3.4.6 pytest.mark.标签名        打标签
 **1.** 注册标签名 
 - 方式1：创建`pytest.ini`文件，在文件中按如下形式添加标签名：
-	 	```
-	 	 ###################### 打标签 #######################
+	 ```
+	 ###################### 打标签 #######################
      [pytest]
      markers= 
-         标签名:  The explanation must be in Chinese
-         标签名1
-         标签名2
-         # : 代表解释，必须为英文
-     ############## 配置pytest命令行运行参数 ##################
+     标签名:  The explanation must be in Chinese
+     标签名1
+     标签名2
+     # : 代表解释，必须为英文
+    ############## 配置pytest命令行运行参数 ##################
 	 [pytest]
 	 addopts = -v -s --reruns 失败次数 --html=./report.html
 	 # 空格分隔，可添加多个命令行参数 -所有参数均为插件包的参数
@@ -455,7 +455,7 @@ if __name__ == '__main__':
 	 [pytest]
 	 testpaths = ./scripts
 	 # 当前目录下的scripts文件夹  可自定义
-
+    
 	 ################### 配置测试搜索的文件名 ####################
 	 [pytest]
 	 python_files = test_*.py
@@ -468,7 +468,7 @@ if __name__ == '__main__':
 	 [pytest]
 	 python_functions = test_*
 	 # 当前目录下的scripts文件夹下，以test_开头，以.py结尾的所有文件中，以Test_开头的类内，以test_开头的⽅法 -可自定义         
-	```
+	 ```
 	
 -  方式2：创建`conftest.py`文件
 	```
